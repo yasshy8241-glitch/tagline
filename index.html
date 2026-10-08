@@ -1,0 +1,664 @@
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <!-- スマホでの表示を最適化 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Tag Line | 写真ラベル・ポインター注釈</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- React & ReactDOM (CDN) -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- Babel (ブラウザでJSXをコンパイル) -->
+  <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400..700&family=Dela+Gothic+One&family=Klee+One:wght@400;600&family=Mochiy+Pop+P+One&family=Pacifico&family=Shippori+Mincho:wght@400..800&family=Yomogi&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <style>
+    body { 
+      margin: 0; 
+      padding: 0; 
+      background-color: #f4f4f4; 
+      color-scheme: light; /* ダークモード干渉防止 */
+      font-family: 'Zen Kaku Gothic New', sans-serif;
+      overflow: hidden;
+      touch-action: none; /* デフォルトのスワイプ操作を無効化 */
+    }
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+    .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    /* 背景のグリッドパターン */
+    .grid-bg {
+      background-image: linear-gradient(#d1d5db 1px, transparent 1px), linear-gradient(90deg, #d1d5db 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+    
+    input:focus { outline: none; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useRef, useEffect, Fragment } = React;
+
+    // UI Icons
+    const ImagePlus = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><line x1="16" x2="22" y1="5" y2="5"/><line x1="19" x2="19" y1="2" y2="8"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>;
+    const Undo2 = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>;
+    const Redo2 = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5v0A5.5 5.5 0 0 0 9.5 20H13"/></svg>;
+    const Trash2 = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>;
+    const RotateCcw = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>;
+    const Download = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>;
+    const ImageIcon = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>;
+    const Tag = ({ size = 24, strokeWidth = 2, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/></svg>;
+    const Check = ({ size = 24, color = "currentColor", className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="20 6 9 17 4 12"/></svg>;
+    const TypeIcon = ({ size = 24, strokeWidth = 2, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" x2="15" y1="20" y2="20"/><line x1="12" x2="12" y1="4" y2="20"/></svg>;
+
+    // Custom Shapes
+    const Sparkle = () => <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full"><path d="M12 2c0 5.5-4.5 10-10 10 5.5 0 10 4.5 10 10 0-5.5 4.5-10 10-10-5.5 0-10-4.5-10-10z" /></svg>;
+    const CustomStar = () => <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full"><path d="M12 2l2.4 7.4h7.6l-6 4.6 2.3 7.5-6.3-4.8-6.3 4.8 2.3-7.5-6-4.6h7.6z" /></svg>;
+
+    // Line Styles
+    const StraightLineIcon = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="4" y1="20" x2="20" y2="4" /></svg>;
+    const DashedLineIcon = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeDasharray="4 4"><line x1="4" y1="20" x2="20" y2="4" /></svg>;
+    const WaveLineIcon = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M 3 17 Q 6 12, 9 17 T 15 17 T 21 17" /></svg>;
+
+    // 波線生成ヘルパー
+    const generateWavePath = (x1, y1, x2, y2, scale = 1) => {
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const length = Math.sqrt(dx * dx + dy * dy);
+      const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+      if (length === 0) return { d: '', transform: '' };
+
+      let d = `M 0 0 `;
+      const step = 8 * scale;
+      const amp = 3.5 * scale;
+      let up = true;
+      for (let i = step; i < length; i += step) {
+        d += `Q ${i - step/2} ${up ? amp : -amp} ${i} 0 `;
+        up = !up;
+      }
+      d += `L ${length} 0`;
+      return { d, transform: `translate(${x1}, ${y1}) rotate(${angle})` };
+    };
+
+    // テキスト見切れ防止ヘルパー
+    const getVisualLength = (text) => {
+      if (!text) return 0;
+      let len = 0;
+      for (let i = 0; i < text.length; i++) {
+        len += text.charCodeAt(i) > 255 ? 1.0 : 0.6;
+      }
+      return len;
+    };
+
+    function App() {
+      const [uploadedImage, setUploadedImage] = useState(null);
+      const [elements, setElements] = useState([]);
+      const [selectedElementId, setSelectedElementId] = useState(null);
+      const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+      
+      const [activeMenu, setActiveMenu] = useState(null);
+      const [activeLabelShape, setActiveLabelShape] = useState('sparkle');
+      const [activeLineStyle, setActiveLineStyle] = useState('straight');
+      const [activeColor, setActiveColor] = useState('#ffffff');
+      const [activeFont, setActiveFont] = useState('"Zen Kaku Gothic New", sans-serif');
+
+      const imgRef = useRef(null);
+      
+      const [isDrawing, setIsDrawing] = useState(false);
+      const [drawingState, setDrawingState] = useState(null);
+
+      const [history, setHistory] = useState([[]]);
+      const [historyIndex, setHistoryIndex] = useState(0);
+
+      const colors = [
+        '#ffffff', '#222222', '#888888', '#c4c4c4', '#e8e8e8',
+        '#e5989b', '#b56576', '#6d597a', '#355070', '#5e6472',
+        '#7f9183', '#a3b18a', '#dad7cd', '#d4a373', '#faedcd',
+        '#f4a261', '#e76f51', '#2a9d8f', '#264653', '#1d3557'
+      ];
+
+      const fonts = [
+        { name: 'モダンゴシック', value: '"Zen Kaku Gothic New", sans-serif' },
+        { name: '手書き(上品)', value: '"Klee One", cursive' },
+        { name: '手書き(可愛い)', value: '"Yomogi", cursive' },
+        { name: '丸ポップ', value: '"Mochiy Pop P One", sans-serif' },
+        { name: 'きれいな明朝', value: '"Shippori Mincho", serif' },
+        { name: '極太インパクト', value: '"Dela Gothic One", cursive' },
+        { name: '英字 筆記体', value: '"Pacifico", cursive' },
+        { name: '英字 手書き', value: '"Caveat", cursive' },
+        { name: 'クラシック', value: '"Times New Roman", Times, serif' },
+        { name: 'システム標準', value: 'sans-serif' }
+      ];
+
+      const labelShapes = [
+        { id: 'none', label: 'なし', icon: null },
+        { id: 'sparkle', label: 'キラキラ', icon: <Sparkle /> },
+        { id: 'star', label: 'スター', icon: <CustomStar /> },
+        { id: 'heart', label: 'ハート', icon: <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg> },
+        { id: 'circle', label: 'サークル', icon: <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg> }
+      ];
+
+      const lineStyles = [
+        { id: 'none', label: 'なし', icon: <div className="w-5 h-5 border-b-2 border-dashed border-gray-400 rotate-45"></div> },
+        { id: 'straight', label: '直線', icon: <StraightLineIcon /> },
+        { id: 'dashed', label: '点線', icon: <DashedLineIcon /> },
+        { id: 'wave', label: 'うねうね', icon: <WaveLineIcon /> }
+      ];
+
+      // Resize observer
+      useEffect(() => {
+        if (!imgRef.current) return;
+        const observer = new ResizeObserver((entries) => {
+          const { width, height } = entries[0].contentRect;
+          if (width > 0 && height > 0) {
+            setCanvasSize({ width, height });
+          }
+        });
+        observer.observe(imgRef.current);
+        return () => observer.disconnect();
+      }, [uploadedImage]);
+
+      const handleImageUpload = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (event) => setUploadedImage(event.target.result);
+          reader.readAsDataURL(file);
+        }
+      };
+
+      const saveToHistory = (newElements) => {
+        const newHistory = history.slice(0, historyIndex + 1);
+        newHistory.push(newElements);
+        setHistory(newHistory);
+        setHistoryIndex(newHistory.length - 1);
+      };
+
+      const handleUndo = () => {
+        if (historyIndex > 0) {
+          setHistoryIndex(historyIndex - 1);
+          setElements(history[historyIndex - 1]);
+          setSelectedElementId(null);
+        }
+      };
+
+      const handleRedo = () => {
+        if (historyIndex < history.length - 1) {
+          setHistoryIndex(historyIndex + 1);
+          setElements(history[historyIndex + 1]);
+          setSelectedElementId(null);
+        }
+      };
+
+      const handleDelete = () => {
+        if (selectedElementId) {
+          const newElements = elements.filter(el => el.id !== selectedElementId);
+          setElements(newElements);
+          setSelectedElementId(null);
+          saveToHistory(newElements);
+        }
+      };
+
+      const handleClearAll = () => {
+        if (elements.length > 0) {
+          if(confirm('すべての編集をリセットしますか？')) {
+            setElements([]);
+            setSelectedElementId(null);
+            saveToHistory([]);
+          }
+        }
+      };
+
+      const updateElement = (id, updates) => {
+        setElements(prev => prev.map(el => el.id === id ? { ...el, ...updates } : el));
+      };
+
+      const commitElementUpdate = (id, updates) => {
+        const newElements = elements.map(el => el.id === id ? { ...el, ...updates } : el);
+        setElements(newElements);
+        saveToHistory(newElements);
+      };
+
+      const toggleMenu = (menuName) => {
+        setActiveMenu(activeMenu === menuName ? null : menuName);
+      };
+
+      const getPctCoords = (e) => {
+        if (!imgRef.current) return null;
+        const rect = imgRef.current.getBoundingClientRect();
+        // マウスとタッチの両対応
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return {
+          x: (clientX - rect.left) / rect.width,
+          y: (clientY - rect.top) / rect.height,
+          pxX: clientX,
+          pxY: clientY
+        };
+      };
+
+      const handleDragDown = (e, element, type) => {
+        e.stopPropagation();
+        setSelectedElementId(element.id);
+        setActiveMenu(null);
+        if (e.target.tagName === 'INPUT') return;
+        
+        const startCoords = getPctCoords(e);
+        if(!startCoords) return;
+
+        const origStartX = element.startX;
+        const origStartY = element.startY;
+        const origEndX = element.endX;
+        const origEndY = element.endY;
+
+        const handleMove = (ev) => {
+          const currentCoords = getPctCoords(ev);
+          if(!currentCoords) return;
+          const dx = currentCoords.x - startCoords.x;
+          const dy = currentCoords.y - startCoords.y;
+          
+          if (type === 'group') {
+            updateElement(element.id, { startX: origStartX + dx, startY: origStartY + dy, endX: origEndX + dx, endY: origEndY + dy });
+          } else if (type === 'start') {
+            updateElement(element.id, { startX: origStartX + dx, startY: origStartY + dy });
+          } else if (type === 'end') {
+            updateElement(element.id, { endX: origEndX + dx, endY: origEndY + dy });
+          }
+        };
+
+        const handleUp = () => {
+          document.removeEventListener('mousemove', handleMove);
+          document.removeEventListener('touchmove', handleMove);
+          document.removeEventListener('mouseup', handleUp);
+          document.removeEventListener('touchend', handleUp);
+          saveToHistory(elements); // Needs ref fixing in pure React, using workaround for simple state here
+        };
+
+        document.addEventListener('mousemove', handleMove);
+        document.addEventListener('touchmove', handleMove, { passive: false });
+        document.addEventListener('mouseup', handleUp);
+        document.addEventListener('touchend', handleUp);
+      };
+
+      const handlePointerDownCanvas = (e) => {
+        if (!uploadedImage || canvasSize.width === 0) return;
+        
+        // 枠外（背景）タップで選択解除
+        if (e.target.id === 'canvas-container' || e.target.id === 'canvas-bg') {
+          setSelectedElementId(null);
+          setActiveMenu(null);
+          return;
+        }
+
+        if (e.target.tagName === 'IMG' || e.target.id === 'canvas-svg') {
+          if (selectedElementId) {
+            setSelectedElementId(null);
+            setActiveMenu(null);
+            return; 
+          }
+
+          const coords = getPctCoords(e);
+          if(!coords) return;
+          
+          setIsDrawing(true);
+          setDrawingState({
+            startX: coords.x, startY: coords.y,
+            currentX: coords.x, currentY: coords.y,
+            startPxX: coords.pxX, startPxY: coords.pxY
+          });
+        }
+      };
+
+      const handlePointerMoveCanvas = (e) => {
+        if (isDrawing && drawingState) {
+          const coords = getPctCoords(e);
+          if(coords) setDrawingState({ ...drawingState, currentX: coords.x, currentY: coords.y });
+        }
+      };
+
+      const handlePointerUpCanvas = (e) => {
+        if (isDrawing && drawingState) {
+          setIsDrawing(false);
+          const coords = getPctCoords(e) || { x: drawingState.currentX, y: drawingState.currentY, pxX: drawingState.startPxX, pxY: drawingState.startPxY };
+          
+          const distance = Math.sqrt(Math.pow(coords.pxX - drawingState.startPxX, 2) + Math.pow(coords.pxY - drawingState.startPxY, 2));
+          let finalEndX = coords.x;
+          let finalEndY = coords.y;
+          
+          if (distance < 15) {
+            finalEndX = drawingState.startX + (40 / canvasSize.width); 
+            finalEndY = drawingState.startY;
+          }
+
+          const newAnnotation = {
+            id: Date.now().toString(),
+            type: 'annotation',
+            startX: drawingState.startX, startY: drawingState.startY,
+            endX: finalEndX, endY: finalEndY,
+            labelShape: activeLabelShape, lineStyle: activeLineStyle,
+            color: activeColor, font: activeFont,
+            text: 'text'
+          };
+
+          const newElements = [...elements, newAnnotation];
+          setElements(newElements);
+          setSelectedElementId(newAnnotation.id);
+          saveToHistory(newElements);
+          setDrawingState(null);
+        }
+      };
+
+      return (
+        <div className="flex flex-col h-[100dvh] w-full font-sans text-gray-800 overflow-hidden bg-[#f4f4f4]">
+          {/* Header */}
+          <div className="flex justify-between items-center p-3 md:px-6 md:py-4 bg-white/90 backdrop-blur-md z-20 shrink-0 border-b border-gray-200">
+            <div className="flex items-center space-x-2">
+              <div className="text-xl font-bold tracking-tight pl-2">Tag Line</div>
+              {uploadedImage && (
+                <label className="cursor-pointer p-2 ml-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors" title="画像を変更">
+                  <ImagePlus size={20} />
+                  <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                </label>
+              )}
+            </div>
+            
+            <div className="flex items-center space-x-1">
+              <button onClick={handleUndo} disabled={historyIndex === 0} className={`p-2 rounded-full transition-colors ${historyIndex > 0 ? 'text-gray-700 hover:bg-gray-100' : 'text-gray-300'}`}><Undo2 size={20} /></button>
+              <button onClick={handleRedo} disabled={historyIndex === history.length - 1} className={`p-2 rounded-full transition-colors ${historyIndex < history.length - 1 ? 'text-gray-700 hover:bg-gray-100' : 'text-gray-300'}`}><Redo2 size={20} /></button>
+              <div className="w-px h-5 bg-gray-300 mx-1"></div>
+              <button onClick={handleDelete} disabled={!selectedElementId} className={`p-2 rounded-full transition-colors ${selectedElementId ? 'text-gray-700 hover:bg-gray-100' : 'text-gray-300'}`}><Trash2 size={20} /></button>
+              <button onClick={handleClearAll} disabled={elements.length === 0} className={`p-2 rounded-full transition-colors ${elements.length > 0 ? 'text-red-500 hover:bg-red-50' : 'text-gray-300'}`}><RotateCcw size={20} /></button>
+            </div>
+            <button onClick={() => alert('保存機能は準備中です。スクリーンショットで保存してください！')} className="px-4 py-2 bg-black text-white text-sm rounded-full font-medium flex items-center hover:bg-gray-800 transition-colors ml-2">
+               <Download size={16} className="mr-1.5" /> 保存
+            </button>
+          </div>
+
+          {/* Canvas Area */}
+          <div 
+            id="canvas-container"
+            className="flex-1 w-full relative overflow-hidden flex items-center justify-center p-4 pb-[130px] md:p-8 md:pb-[160px]"
+            onMouseDown={handlePointerDownCanvas}
+            onTouchStart={handlePointerDownCanvas}
+            onMouseMove={handlePointerMoveCanvas}
+            onTouchMove={handlePointerMoveCanvas}
+            onMouseUp={handlePointerUpCanvas}
+            onTouchEnd={handlePointerUpCanvas}
+          >
+            <div id="canvas-bg" className="absolute inset-0 pointer-events-none opacity-50 z-0 grid-bg" />
+
+            {!uploadedImage ? (
+              <div className="z-10 flex flex-col items-center justify-center p-6 text-center w-full max-w-sm">
+                <label className="cursor-pointer bg-white/90 backdrop-blur-sm w-full py-20 rounded-[2rem] shadow-sm border border-gray-100 flex flex-col items-center hover:bg-white hover:shadow-md transition-all">
+                  <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4"><ImageIcon size={32} className="text-gray-400" /></div>
+                  <span className="text-gray-800 font-semibold text-lg">写真をアップロード</span>
+                  <span className="text-gray-400 text-sm mt-2 font-medium">タップしてはじめる</span>
+                  <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                </label>
+              </div>
+            ) : (
+              <div 
+                className="relative touch-none bg-white cursor-crosshair shadow-xl"
+                style={{ borderRadius: '12px', maxWidth: '100%', lineHeight: 0 }}
+              >
+                <img 
+                  ref={imgRef}
+                  src={uploadedImage} 
+                  alt="Canvas" 
+                  className="select-none pointer-events-none block"
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: 'calc(100dvh - 220px)',
+                    width: 'auto',
+                    height: 'auto',
+                    borderRadius: '12px',
+                    objectFit: 'contain'
+                  }}
+                />
+                
+                {/* SVG Layer */}
+                <svg id="canvas-svg" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1, overflow: 'visible' }}>
+                   {elements.map(el => {
+                     if (el.lineStyle === 'none' || (el.startX === el.endX && el.startY === el.endY)) return null;
+                     
+                     const scale = canvasSize.width / 400;
+                     const pxStartX = el.startX * canvasSize.width;
+                     const pxStartY = el.startY * canvasSize.height;
+                     const pxEndX = el.endX * canvasSize.width;
+                     const pxEndY = el.endY * canvasSize.height;
+                     const textRadius = 15 * scale; 
+                     
+                     const dx = pxEndX - pxStartX;
+                     const dy = pxEndY - pxStartY;
+                     const dist = Math.sqrt(dx*dx + dy*dy);
+                     
+                     let drawEndX = dist > textRadius ? pxStartX + dx * ((dist - textRadius) / dist) : pxStartX;
+                     let drawEndY = dist > textRadius ? pxStartY + dy * ((dist - textRadius) / dist) : pxStartY;
+
+                     return (
+                       <g key={`line-${el.id}`} onMouseDown={(e) => handleDragDown(e, el, 'group')} onTouchStart={(e) => handleDragDown(e, el, 'group')} style={{ cursor: 'move', pointerEvents: 'auto' }}>
+                         {(el.lineStyle === 'straight' || el.lineStyle === 'dashed') && <line x1={pxStartX} y1={pxStartY} x2={drawEndX} y2={drawEndY} stroke="transparent" strokeWidth={24 * scale} strokeLinecap="round" />}
+                         {el.lineStyle === 'wave' && <path {...generateWavePath(pxStartX, pxStartY, drawEndX, drawEndY, scale)} stroke="transparent" strokeWidth={24 * scale} fill="none" strokeLinecap="round" />}
+                         
+                         {el.lineStyle === 'straight' && <line x1={pxStartX} y1={pxStartY} x2={drawEndX} y2={drawEndY} stroke={el.color} strokeWidth={1.5 * scale} strokeLinecap="round" pointerEvents="none" />}
+                         {el.lineStyle === 'dashed' && <line x1={pxStartX} y1={pxStartY} x2={drawEndX} y2={drawEndY} stroke={el.color} strokeWidth={1.5 * scale} strokeLinecap="round" strokeDasharray={`${4 * scale} ${4 * scale}`} pointerEvents="none" />}
+                         {el.lineStyle === 'wave' && <path {...generateWavePath(pxStartX, pxStartY, drawEndX, drawEndY, scale)} stroke={el.color} strokeWidth={1.5 * scale} fill="none" strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />}
+                         {el.labelShape !== 'none' && <circle cx={pxStartX} cy={pxStartY} r={2.5 * scale} fill={el.color} pointerEvents="none" />}
+                       </g>
+                     );
+                   })}
+
+                   {isDrawing && drawingState && (() => {
+                     const scale = canvasSize.width / 400;
+                     const pxStartX = drawingState.startX * canvasSize.width;
+                     const pxStartY = drawingState.startY * canvasSize.height;
+                     const pxCurX = drawingState.currentX * canvasSize.width;
+                     const pxCurY = drawingState.currentY * canvasSize.height;
+                     const textRadius = 15 * scale;
+                     
+                     const dx = pxCurX - pxStartX;
+                     const dy = pxCurY - pxStartY;
+                     const dist = Math.sqrt(dx*dx + dy*dy);
+                     
+                     let drawEndX = dist > textRadius ? pxStartX + dx * ((dist - textRadius) / dist) : pxStartX;
+                     let drawEndY = dist > textRadius ? pxStartY + dy * ((dist - textRadius) / dist) : pxStartY;
+
+                     return (
+                       <g style={{ opacity: 0.7, pointerEvents: 'none' }}>
+                         {activeLineStyle === 'straight' && <line x1={pxStartX} y1={pxStartY} x2={drawEndX} y2={drawEndY} stroke={activeColor} strokeWidth={1.5 * scale} strokeLinecap="round" />}
+                         {activeLineStyle === 'dashed' && <line x1={pxStartX} y1={pxStartY} x2={drawEndX} y2={drawEndY} stroke={activeColor} strokeWidth={1.5 * scale} strokeLinecap="round" strokeDasharray={`${4 * scale} ${4 * scale}`} />}
+                         {activeLineStyle === 'wave' && <path {...generateWavePath(pxStartX, pxStartY, drawEndX, drawEndY, scale)} stroke={activeColor} strokeWidth={1.5 * scale} fill="none" strokeLinecap="round" />}
+                         {activeLabelShape !== 'none' && <circle cx={pxStartX} cy={pxStartY} r={2.5 * scale} fill={activeColor} />}
+                       </g>
+                     );
+                   })()}
+                </svg>
+
+                {/* HTML Layer for Labels/Texts */}
+                {elements.map(el => {
+                  const isSelected = selectedElementId === el.id;
+                  const scale = canvasSize.width / 400;
+                  const pxStartX = el.startX * canvasSize.width;
+                  const pxStartY = el.startY * canvasSize.height;
+                  const pxEndX = el.endX * canvasSize.width;
+                  const pxEndY = el.endY * canvasSize.height;
+                  
+                  return (
+                    <Fragment key={el.id}>
+                      {el.labelShape !== 'none' && (
+                        <div 
+                          style={{
+                            position: 'absolute', left: pxStartX, top: pxStartY, transform: 'translate(-50%, -50%)',
+                            cursor: 'move', touchAction: 'none', zIndex: isSelected ? 20 : 10, color: el.color, padding: `${12 * scale}px`,
+                          }}
+                          onMouseDown={(e) => handleDragDown(e, el, 'group')} onTouchStart={(e) => handleDragDown(e, el, 'group')}
+                        >
+                          <div style={{ width: `${24 * scale}px`, height: `${24 * scale}px`, pointerEvents: 'none' }}>
+                            {labelShapes.find(s => s.id === el.labelShape)?.icon}
+                          </div>
+                        </div>
+                      )}
+
+                      <div 
+                        style={{
+                          position: 'absolute', left: pxEndX, top: pxEndY, transform: 'translate(-50%, -50%)',
+                          cursor: 'move', touchAction: 'none', zIndex: isSelected ? 21 : 11, color: el.color,
+                          padding: `${4 * scale}px ${8 * scale}px`, border: isSelected ? '1px dashed #ccc' : '1px solid transparent',
+                          borderRadius: `${4 * scale}px`, backgroundColor: isSelected ? 'rgba(255,255,255,0.1)' : 'transparent',
+                        }}
+                        onMouseDown={(e) => handleDragDown(e, el, 'group')} onTouchStart={(e) => handleDragDown(e, el, 'group')}
+                      >
+                        <input
+                          type="text"
+                          value={el.text}
+                          onChange={(e) => updateElement(el.id, { text: e.target.value })}
+                          onBlur={(e) => commitElementUpdate(el.id, { text: e.target.value })}
+                          onFocus={(e) => { if (el.text === 'text') updateElement(el.id, { text: '' }); }}
+                          onMouseDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}
+                          style={{
+                            background: 'transparent', border: 'none', color: 'inherit', fontFamily: el.font,
+                            fontSize: `${18 * scale}px`, outline: 'none', width: `${Math.max(1.5, getVisualLength(el.text) + 0.8)}em`,
+                            minWidth: `${20 * scale}px`, textAlign: 'center', pointerEvents: 'auto', lineHeight: 1
+                          }}
+                        />
+                      </div>
+
+                      {isSelected && (
+                        <>
+                          <div 
+                            onMouseDown={(e) => handleDragDown(e, el, 'start')} onTouchStart={(e) => handleDragDown(e, el, 'start')}
+                            style={{
+                              position: 'absolute', left: pxStartX, top: pxStartY, width: `${18 * scale}px`, height: `${18 * scale}px`, 
+                              backgroundColor: '#3b82f6', border: `${2 * scale}px solid white`, borderRadius: '50%', 
+                              transform: 'translate(-50%, -50%)', cursor: 'pointer', zIndex: 30,
+                              boxShadow: `0 ${2 * scale}px ${4 * scale}px rgba(0,0,0,0.2)`, touchAction: 'none'
+                            }}
+                          />
+                          <div 
+                            onMouseDown={(e) => handleDragDown(e, el, 'end')} onTouchStart={(e) => handleDragDown(e, el, 'end')}
+                            style={{
+                              position: 'absolute', left: pxEndX, top: pxEndY, width: `${18 * scale}px`, height: `${18 * scale}px`, 
+                              backgroundColor: '#3b82f6', border: `${2 * scale}px solid white`, borderRadius: '50%', 
+                              transform: 'translate(-50%, -50%)', cursor: 'pointer', zIndex: 30,
+                              boxShadow: `0 ${2 * scale}px ${4 * scale}px rgba(0,0,0,0.2)`, touchAction: 'none'
+                            }}
+                          />
+                        </>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="fixed bottom-0 left-0 w-full z-40 flex flex-col justify-end pointer-events-none md:bottom-8 md:left-1/2 md:-translate-x-1/2 md:w-auto md:items-center">
+            
+            <div className="w-full px-4 mb-3 pointer-events-auto flex justify-center md:px-0">
+              {activeMenu === 'label' && (
+                <div className="bg-white/95 backdrop-blur-md rounded-2xl border border-gray-200 p-3 w-full max-w-sm">
+                   <div className="text-[10px] text-center text-gray-400 mb-2 font-medium tracking-wider">ラベルを選択</div>
+                   <div className="grid grid-cols-5 gap-1">
+                     {labelShapes.map(shape => (
+                       <button key={shape.id} onClick={() => { setActiveLabelShape(shape.id); if (selectedElementId) commitElementUpdate(selectedElementId, { labelShape: shape.id }); }} className={`aspect-square rounded-xl transition-all flex flex-col items-center justify-center ${activeLabelShape === shape.id ? 'bg-gray-100 scale-105' : 'text-gray-700 hover:bg-gray-50'}`}>
+                         {shape.icon ? <div className="w-5 h-5 text-gray-800">{shape.icon}</div> : <div className="text-xs font-medium text-gray-400">無</div>}
+                       </button>
+                     ))}
+                   </div>
+                </div>
+              )}
+
+              {activeMenu === 'line' && (
+                <div className="bg-white/95 backdrop-blur-md rounded-2xl border border-gray-200 p-3 w-full max-w-sm">
+                   <div className="text-[10px] text-center text-gray-400 mb-2 font-medium tracking-wider">ラインスタイル</div>
+                   <div className="flex justify-around items-center">
+                     {lineStyles.map(style => (
+                       <button key={style.id} onClick={() => { setActiveLineStyle(style.id); if (selectedElementId) commitElementUpdate(selectedElementId, { lineStyle: style.id }); }} className={`px-4 py-3 rounded-xl transition-all flex flex-col items-center ${activeLineStyle === style.id ? 'bg-gray-100 scale-105' : 'text-gray-500 hover:bg-gray-50'}`}>
+                         <div className="w-6 h-6 text-gray-800 mb-1">{style.icon}</div>
+                         <span className="text-[10px] font-medium">{style.label}</span>
+                       </button>
+                     ))}
+                   </div>
+                </div>
+              )}
+
+              {activeMenu === 'color' && (
+                <div className="bg-white/95 backdrop-blur-md rounded-3xl p-4 border border-gray-200 w-full max-w-md">
+                  <div className="text-[10px] text-center text-gray-400 mb-3 font-medium tracking-wider">カラー</div>
+                  <div className="grid grid-cols-10 gap-3">
+                    {colors.map(color => (
+                      <button key={color} onClick={() => { setActiveColor(color); if (selectedElementId) commitElementUpdate(selectedElementId, { color }); }} className={`w-7 h-7 rounded-full shadow-sm mx-auto transition-transform flex items-center justify-center ${activeColor === color ? 'ring-2 ring-offset-1 ring-gray-400 scale-110' : 'hover:scale-105'}`} style={{ backgroundColor: color, border: color === '#ffffff' ? '1px solid #e5e5e5' : 'none' }}>
+                         {activeColor === color && color === '#ffffff' && <Check size={12} color="#000" />}
+                         {activeColor === color && color !== '#ffffff' && <Check size={12} color="#fff" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {activeMenu === 'font' && (
+                <div className="bg-white/95 backdrop-blur-md rounded-3xl p-4 border border-gray-200 w-full max-w-sm">
+                  <div className="text-[10px] text-center text-gray-400 mb-2 font-medium tracking-wider">フォント</div>
+                  <div className="flex flex-col space-y-1 max-h-48 overflow-y-auto pr-2 scrollbar-hide">
+                    {fonts.map(font => (
+                      <button key={font.name} onClick={() => { setActiveFont(font.value); if (selectedElementId) commitElementUpdate(selectedElementId, { font: font.value }); }} className={`text-left px-4 py-3 rounded-xl text-base transition-colors ${activeFont === font.value ? 'bg-gray-100 font-bold' : 'hover:bg-gray-50 text-gray-700'}`} style={{ fontFamily: font.value }}>
+                        {font.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-white border-t border-gray-200 pb-6 pt-2 w-full pointer-events-auto md:w-auto md:rounded-full md:border md:pb-2 md:px-8 md:shadow-sm">
+              <div className="flex justify-around items-center w-full max-w-sm mx-auto px-2 md:gap-6">
+                
+                <button onClick={() => toggleMenu('label')} className="flex flex-col items-center justify-center p-2 w-16 group">
+                  <div className={`p-2.5 rounded-full mb-1 transition-all ${activeMenu === 'label' ? 'bg-gray-100 text-black' : 'bg-transparent text-gray-500 group-hover:bg-gray-50'}`}>
+                     <Tag size={20} className={activeLabelShape !== 'none' && activeMenu !== 'label' ? 'fill-current opacity-20' : ''} />
+                  </div>
+                  <span className={`text-[10px] font-medium ${activeMenu === 'label' ? 'text-black' : 'text-gray-400'}`}>ラベル</span>
+                </button>
+                
+                <button onClick={() => toggleMenu('line')} className="flex flex-col items-center justify-center p-2 w-16 group">
+                  <div className={`p-2.5 rounded-full mb-1 transition-all ${activeMenu === 'line' ? 'bg-gray-100 text-black' : 'bg-transparent text-gray-500 group-hover:bg-gray-50'}`}>
+                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="20" x2="20" y2="4"></line><circle cx="4" cy="20" r="2" fill={activeLineStyle !== 'none' ? 'currentColor' : 'none'}/></svg>
+                  </div>
+                  <span className={`text-[10px] font-medium ${activeMenu === 'line' ? 'text-black' : 'text-gray-400'}`}>ライン</span>
+                </button>
+
+                <button onClick={() => toggleMenu('color')} className="flex flex-col items-center justify-center p-2 w-16 group">
+                  <div className={`p-2.5 rounded-full mb-1 transition-all ${activeMenu === 'color' ? 'bg-gray-100 text-black' : 'bg-transparent text-gray-500 group-hover:bg-gray-50'}`}>
+                    <div className="w-5 h-5 rounded-full border border-gray-200" style={{ backgroundColor: activeColor }} />
+                  </div>
+                  <span className={`text-[10px] font-medium ${activeMenu === 'color' ? 'text-black' : 'text-gray-400'}`}>カラー</span>
+                </button>
+                
+                <button onClick={() => toggleMenu('font')} className="flex flex-col items-center justify-center p-2 w-16 group">
+                  <div className={`p-2.5 rounded-full mb-1 transition-all ${activeMenu === 'font' ? 'bg-gray-100 text-black' : 'bg-transparent text-gray-500 group-hover:bg-gray-50'}`}>
+                     <TypeIcon size={20} />
+                  </div>
+                  <span className={`text-[10px] font-medium ${activeMenu === 'font' ? 'text-black' : 'text-gray-400'}`}>フォント</span>
+                </button>
+
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
