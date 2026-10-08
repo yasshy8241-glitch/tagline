@@ -144,7 +144,7 @@
         { id: 'sparkle', label: 'キラキラ', icon: <Sparkle /> },
         { id: 'star', label: 'スター', icon: <CustomStar /> },
         { id: 'heart', label: 'ハート', icon: <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg> },
-        { id: 'circle', label: 'サークル', icon: <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg> }
+        { id: 'circle', label: 'サークル', icon: <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="7"/></svg> }
       ];
 
       const lineStyles = [
@@ -235,9 +235,22 @@
       const getPctCoords = (e) => {
         if (!imgRef.current) return null;
         const rect = imgRef.current.getBoundingClientRect();
-        // マウスとタッチの両対応
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        
+        // マウスとタッチ（ドラッグ中・指を離した瞬間）の両方に完全対応
+        let clientX, clientY;
+        if (e.changedTouches && e.changedTouches.length > 0) {
+          clientX = e.changedTouches[0].clientX;
+          clientY = e.changedTouches[0].clientY;
+        } else if (e.touches && e.touches.length > 0) {
+          clientX = e.touches[0].clientX;
+          clientY = e.touches[0].clientY;
+        } else {
+          clientX = e.clientX;
+          clientY = e.clientY;
+        }
+
+        if (clientX === undefined) return null;
+
         return {
           x: (clientX - rect.left) / rect.width,
           y: (clientY - rect.top) / rect.height,
